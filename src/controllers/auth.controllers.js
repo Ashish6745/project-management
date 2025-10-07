@@ -207,4 +207,35 @@ const verifyEmail = asyncHandler(async (req, res) => {
 });
 
 
-export {registerUser, loginUser, logoutUser, getUser };
+const refreshAccessToken = asyncHandler(async (req, res) => {
+    const {refreshToken} = req.cookies;
+    if(!refreshToken){
+        throw new ApiError(401, "Refresh Token is missing.");
+    }
+    // verify the refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    if(!decoded || !decoded.userId){
+        throw new ApiError(401, "Invalid Refresh Token or has been expired.");
+    }
+    // now find the user by using the userId from the decoded token
+    const user = await User.findById(decoded.userId);   
+    if(!user || user.refreshToken !== refreshToken){
+        throw new ApiError(401, "Invalid Refresh Token or has been expired.");
+    }
+    // generate new access token for the user
+    const accessToken = user.generateAccessToken();
+    const options  = {
+        httpOnly : true,
+        secure : true
+    };
+    return res.status(200)
+            .cookie("accessToken", accessToken, options)
+            .json(
+                new ApiResponse(200, {accessToken}, "New Access Token generated Successfully")
+            );
+});
+
+
+
+
+export {registerUser, loginUser, logoutUser, getUser, verifyEmail, refreshAccessToken };

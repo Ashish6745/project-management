@@ -207,35 +207,41 @@ const verifyEmail = asyncHandler(async (req, res) => {
 });
 
 
-const refreshAccessToken = asyncHandler(async (req, res) => {
-    const {refreshToken} = req.cookies;
-    if(!refreshToken){
-        throw new ApiError(401, "Refresh Token is missing.");
-    }
-    // verify the refresh token
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-    if(!decoded || !decoded.userId){
-        throw new ApiError(401, "Invalid Refresh Token or has been expired.");
-    }
-    // now find the user by using the userId from the decoded token
-    const user = await User.findById(decoded.userId);   
-    if(!user || user.refreshToken !== refreshToken){
-        throw new ApiError(401, "Invalid Refresh Token or has been expired.");
-    }
-    // generate new access token for the user
-    const accessToken = user.generateAccessToken();
-    const options  = {
-        httpOnly : true,
-        secure : true
-    };
-    return res.status(200)
-            .cookie("accessToken", accessToken, options)
-            .json(
-                new ApiResponse(200, {accessToken}, "New Access Token generated Successfully")
-            );
-});
+
+const resendEmailVerification = asyncHandler(async (req,res) => {
+   const user = await User.findById(req.user._id);
+   if(!user){
+    throw new ApiError(404, "User does not found in the database");
+   }
+   // if email is already verified
+   if(user.isEmailVerified){
+    throw new ApiError(409, "Email is already verified");
+   }
+   const {unHashedToken, hashedToken, tokenExpiry} = user.generateTemporaryToken();
+    user.emailVerificationToken = hashedToken;
+    user.emailVerificationDate = tokenExpiry;
+    await user.save({validateBeforeSave:false});
+
+   // send mail ro the user if email is not verified
+   await sendMail({
+    email:user.email,
+    subject:"Please verify your email",
+    mailgenContent:emailVerificationMailContent(
+        user.username,
+        `${req.protocol}://${req.get("host")}/api/v1/users/verify-email/${unHashedToken}`
+    )
+   });
+
+   return res.status(200).json(
+    new ApiResponse(200, {}, "Resend Email Verification Link has been sent to your email successfully.")
+   )
+})
 
 
 
 
-export {registerUser, loginUser, logoutUser, getUser, verifyEmail, refreshAccessToken };
+
+
+
+
+export {registerUser, loginUser, logoutUser, getUser, verifyEmail,  };

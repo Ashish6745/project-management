@@ -3,7 +3,7 @@ import {ApiResponse} from '../utils/api-response.js';
 import {ApiError} from '../utils/api-errors.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import {sendMail,emailVerificationMailContent} from '../utils/mail.js';
-
+import jwt from 'jsonwebtoken';
 
 // generating refresh tokens ..
 
@@ -235,7 +235,60 @@ const resendEmailVerification = asyncHandler(async (req,res) => {
    return res.status(200).json(
     new ApiResponse(200, {}, "Resend Email Verification Link has been sent to your email successfully.")
    )
-})
+});
+
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+     
+    if(!incomingRefreshToken){
+        throw new ApiError(401,"UnAuthorized Access");
+    }
+
+
+    try {
+    const decodedToken =  jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
+    const user =  await User.findById(decodedToken._id);
+     if(!user){
+        throw new ApiError(401,"Invalid Refresh Token");
+    }
+
+    if(user.refreshToken !== incomingRefreshToken){
+        throw new ApiError(401,"Refresh Token is Expired");
+    }
+    
+    const options  = {
+        httpOnly : true,
+        secure : true
+    };
+
+
+    const {accessToken, refreshToken:newRefreshToken} = await generateAccessAndRefreshTokens(user._id);
+
+    user.refreshToken = newRefreshToken;
+
+    await user.save({validateBeforeSave:false});
+    return res.status(200)
+          .cookie("accessToken", accessToken, options)
+          .cookie("refreshToken", newRefreshToken, options)
+          .json(
+            new ApiResponse(
+                200,"Refresh Token Generated Successfully",
+              {
+                accessToken,
+                refreshToken:newRefreshToken
+                }
+            )
+          );
+
+    } catch (error) {
+        throw new ApiError(401,"Invalid or Expired Refresh Token");
+    }
+
+
+
+
+});
 
 
 
@@ -243,5 +296,4 @@ const resendEmailVerification = asyncHandler(async (req,res) => {
 
 
 
-
-export {registerUser, loginUser, logoutUser, getUser, verifyEmail,  };
+export {registerUser, loginUser, logoutUser, getUser, verifyEmail, refreshAccessToken };

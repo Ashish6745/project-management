@@ -177,13 +177,13 @@ const getUser = asyncHandler(async (req, res) => {
 
 const verifyEmail = asyncHandler(async (req, res) => {
 
-    const {veruificationToken} = req.params;
+    const {verificationToken} = req.params;
   
-    if(!veruificationToken){
+    if(!verificationToken){
       throw  new ApiError(400, "Email Verification token is missing in the url.");
     }
 
-    let hashedToken = crypto.createHash("sha256").update(veruificationToken).digest("hex");
+    let hashedToken = crypto.createHash("sha256").update(verificationToken).digest("hex");
 
 
     const user =  await User.findOne({
@@ -370,4 +370,4 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
 
 
-export {registerUser, loginUser, logoutUser, getUser, verifyEmail, refreshAccessToken, forgotPasswordRequest, resetForgotPassword, changeCurrentPassword };
+export {registerUser, loginUser, logoutUser, getUser, verifyEmail, refreshAccessToken, forgotPasswordRequest, resetForgotPassword, changeCurrentPassword, resendEmailVerification };
